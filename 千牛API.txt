@@ -1,0 +1,609 @@
+//tany 2017年8月30日
+//-------------------------------------------------------------
+QN.plugin.invoke         // 工具栏插件调用协议
+
+QN.wwplugin.invoke       // 旺旺插件调用协议
+
+QN.application.invoke    // 应用本身提供的属性与方法等
+
+QN.wangwang.invoke       // 旺旺相关的接口
+
+QN.top.invoke            // top相关的接口透传调用
+
+QN.component.invoke      // 组件调用
+//-------------------------------------------------------------
+//------------------------调用方式------------------------------
+//plugin与wwplugin的调用：
+QN.plugin.invoke({
+    category : '类别',//jianyiguanli
+    cmd : 'API名称',//
+    param : {/* defined obj */ },
+    error : function(msg, categroy, cmd, param) {
+       // 调用失败
+    },
+    success : function(rsp, categroy, cmd, param) {
+       // 回调结果
+    }
+});
+
+//application、wangwang以及top的调用，以获取千牛版本为例：
+QN.application.invoke({
+    cmd : ' getVersion',
+    param : {/* defined obj */ },
+    error : function(msg, cmd, param) {
+       // 调用失败
+    },
+    success : function(rsp, cmd, param) {
+       // 回调结果
+    }
+});
+//-------------------------------------------------------------
+
+
+//------------------------K3千牛插件调用方法------------------------------
+
+/*************************************************
+ * 仅trade.aspx页面使用
+ * 被 linshiload.js调用 
+ ************************************************/
+var buyernick;
+
+//var baseurl = "http://119.145.129.194:8889";
+var baseurl = "http://lskf.linshimuye.com:8889";
+
+
+/*
+ * 聊天对象切换(监控)
+ */
+var wangwangactivecontactchanged = function () {
+    QN.event.regEvent({
+        eventId: 'wangwang.active_contact_changed',
+        success: function (eventId) {
+            //加载插件时，获取当前用户信息，成功后加载订单数据
+            getActiveUser();
+        },
+        error: function (msg, eventId) {
+        },
+        notify: function (data, eventId) {
+            //切换用户时，获取当前用户信息，成功后加载订单数据
+            //window.location.href = "trade.aspx";
+            getActiveUser();
+            /*
+             *聊天对象却换通知
+             * 加载对应的界面信息
+             */
+            //loadpage();
+            //recordbelinked();
+
+        }
+    });
+}
+
+
+/**
+* 向当前聊天对象输入框,插入信息
+*/
+var sendMsg = function (sendContent) {
+    var nick = $("#nick").val();
+    QN.wangwang.invoke({
+        "cmd": "insertText2Inputbox",
+        "param": {
+            uid: nick,
+            text: sendContent,
+            type: 0
+        }
+    });
+};
+
+/*
+* 焦点(监控)
+* 订单或商品
+*/
+var wangwangtradefocus = function () {
+    QN.event.regEvent({
+        eventId: 'wangwang.trade_focus',
+        success: function (eventId) {
+        },
+        error: function (msg, eventId) {
+        },
+        notify: function (data, eventId) {
+        }
+    });
+}
+
+/**
+* Created with whc
+* 获取当前聊天用户信息
+*/
+var getActiveUser = function () {
+    QN.wangwang.invoke({
+        "cmd": "getActiveUser",
+        "param": {
+        },
+        error: function (msg, cmd, param) {
+            showmsg('获取聊天用户信息失败,请稍候再试!')
+        },
+        success: function (rsp, cmd, param) {
+
+            saveContactInfo(rsp.uid);
+        }
+    });
+};
+
+/**
+* Created with whc
+* 获取当前聊天用户信息
+*/
+var saveContactInfo = function (uid) {
+    QN.wangwang.invoke({
+        "cmd": "getContactInfo",
+        "param": {
+            uid: uid
+        },
+        error: function (msg, cmd, param) {
+            //showmsg('获取聊天用户信息失败,请稍候再试!')
+        },
+        success: function (rsp, cmd, param) {
+            $.ajax({
+                type: "get",
+                url: baseurl + "/access/cacheinfo.ashx",
+                data: {
+                    buyerUid: rsp.uid,
+                    buyerNick: rsp.nickName,
+                    buyerStatus: rsp.status,
+                    buyerInGroup: rsp.in_group
+                },
+                dataType: "text",
+                success: function (data) {
+                    if (data != 0) {
+                        showmsg('获取聊天用户信息失败,请稍候再试!')
+                    }
+                    else {
+                        buyernick = rsp.nickName;
+                        //alert(rsp.nickName);
+                        $("#buyerNickName").html(rsp.nickName);
+                        $("#buyernick").val(rsp.nickName);
+                        $("#user_id").val('cntaobao' + rsp.nickName);
+                        refreshdata();
+                        //loadrefreshdata(rsp.nickName, $("#sellernick").val());
+                        //loadsearchsysorder(rsp.nickName, $("#sellernick").val());
+                    }
+                }
+            });
+
+        }
+    });
+};
+
+/*
+ * 指定联系人 打开聊天
+ * 窗口
+ */
+var chat = function (tochat) {
+    QN.wangwang.invoke({
+        "cmd": "chat",
+        "param": {
+            uid: tochat
+        }
+    });
+}
+
+/*
+ * 交易信息
+ */
+var trade = function (buyernick, status, callback) {
+    QN.top.invoke({
+        "cmd": "taobao.trades.sold.get",
+        "param": {
+            buyer_nick: buyernick,//callBackParameter.chatNick.replace("cntaobao", ""),
+            status: status,
+            fields: "seller_nick,buyer_nick,title,type,created,sid"
+            + ",tid,seller_rate,buyer_rate,status,payment"
+            + ",discount_fee,adjust_fee,post_fee,total_fee"
+            + ",pay_time,end_time,modified,consign_time "
+            + ",buyer_obtain_point_fee,point_fee,real_point_fee"
+            + ",received_payment,commission_fee,pic_path"
+            + ",num_iid,num_iid,num,price,cod_fee,cod_status"
+            + ",shipping_type,receiver_name,receiver_state "
+            + ",receiver_city,receiver_district,receiver_address "
+            + ",receiver_zip,receiver_mobile,receiver_phone,seller_memo,seller_flag"
+            + ",orders.title,orders.pic_path,orders.price,orders.num "
+            + ",orders.iid,orders.num_iid,orders.sku_id,orders.refund_status"
+            + ",orders.status,orders.oid,orders.total_fee,orders.payment "
+            + ",orders.discount_fee,orders.adjust_fee,orders.sku_properties_name"
+            + ",orders.item_meal_name,orders.buyer_rate,orders.seller_rate  "
+            + ",orders.outer_iid,orders.outer_sku_id,orders.refund_id  "
+            + ",orders.seller_type,promotion_details.id,promotion_details.promotion_name,promotion_details.discount_fee,promotion_details.gift_item_name"
+            + ",promotion_details.gift_item_id,promotion_details.gift_item_num,promotion_details.promotion_desc,promotion_details.promotion_id",
+            fromat: 'json'
+        },
+        error: function (msg, cmd, param) {
+            if (typeof (eval(callback)) == "function") {
+                callback(msg)
+            }
+        },
+        success: function (rsp, cmd, param) {
+            if (typeof (eval(callback)) == "function") {
+                callback(rsp);
+            }
+        }
+    });
+}
+
+/*
+ * 单笔点单详细信息
+ */
+var fulltrade = function (tid, callback) {
+    QN.top.invoke({
+        "cmd": "taobao.trade.fullinfo.get",
+        "param": {
+            tid: tid,
+            fields: "seller_nick,buyer_nick,title,type,created,sid"
+            + ",tid,seller_rate,buyer_rate,status,payment"
+            + ",discount_fee,adjust_fee,post_fee,total_fee"
+            + ",pay_time,end_time,modified,consign_time "
+            + ",buyer_obtain_point_fee,point_fee,real_point_fee"
+            + ",received_payment,commission_fee,pic_path"
+            + ",num_iid,num_iid,num,price,cod_fee,cod_status"
+            + ",shipping_type,receiver_name,receiver_state "
+            + ",receiver_city,receiver_district,receiver_address "
+            + ",receiver_zip,receiver_mobile,receiver_phone,seller_memo,seller_flag"
+            + ",orders.title,orders.pic_path,orders.price,orders.num "
+            + ",orders.iid,orders.num_iid,orders.sku_id,orders.refund_status"
+            + ",orders.status,orders.oid,orders.total_fee,orders.payment "
+            + ",orders.discount_fee,orders.adjust_fee,orders.sku_properties_name"
+            + ",orders.item_meal_name,orders.buyer_rate,orders.seller_rate  "
+            + ",orders.outer_iid,orders.outer_sku_id,orders.refund_id  "
+            + ",orders.seller_type,promotion_details.id,promotion_details.promotion_name,promotion_details.discount_fee,promotion_details.gift_item_name"
+            + ",promotion_details.gift_item_id,promotion_details.gift_item_num,promotion_details.promotion_desc,promotion_details.promotion_id",
+            fromat: 'json'
+        },
+        error: function (msg, cmd, param) {
+            if (typeof (eval(callback)) == "function") {
+                callback(msg)
+            }
+        },
+        success: function (rsp, cmd, param) {
+            if (typeof (eval(callback)) == "function") {
+                callback(rsp);
+            }
+        }
+    });
+}
+
+/*
+ * 修改运费
+ */
+var updatePrice = function (updatetid) {
+    QN.component.invoke({
+        category: 'updateprice',
+        cmd: '',
+        param: {
+            uuid: 'EAB35DA7-7956-414E-96C5-E3A78A932BDD',
+            tid: updatetid
+        },
+        error: function (msg, cmd, param) {
+            // 调用失败
+        },
+        success: function (rsp, cmd, param) {
+            // 回调结果
+            alert("修改成功!");
+        }
+    });
+}
+
+/*
+ * 客户信息
+ */
+var UserMsg = function (callbark) {
+    QN.top.invoke({
+        "cmd": "taobao.user.get",
+        "param": {
+            fields: 'user_id,uid,nick,sex,buyer_credit,seller_credit,location,created,last_visit,birthday,type,status,alipay_no,alipay_account,alipay_account,email,consumer_protection,alipay_bind',
+            nick: callBackParameter.chatNick.replace("cntaobao", ""),
+            fromat: 'json'
+        },
+        error: function (msg, cmd, param) {
+        },
+        success: function (rsp, cmd, param) {
+            callbark(rsp);
+            //alert("成功获取用户信息")
+            //alert(JSON.stringify(rsp['user_get_response']['user']['nick']));
+        }
+    });
+}
+/*
+ * 商品管理
+ */
+var item = function () {
+    QN.wwplugin.invoke({
+        "cmd": "shangpinguanli",
+        "param": {
+            chatNick: callBackParameter.chatNick,
+            gids: focusgids
+        }, error: function (msg, categroy, cmd, param) {
+
+        }, success: function (rsp, categroy, cmd, param) {
+
+        }
+    });
+}
+var focusgids = '';
+/*
+ * 获取客户焦点
+ */
+function GetFocus(data) {
+    if (data.type === 1)
+        focusgids = data.gids;
+    if (data.type === 0)
+        tid = data.gids;
+}
+
+/*
+ * 添加备注
+ */
+var taobaotradememoadd = function (tid, memo, flag, callback) {
+    QN.top.invoke({
+        "cmd": "taobao.trade.memo.update",
+        "param": {
+            tid: tid,
+            memo: memo,
+            flag: flag,
+            fromat: 'json'
+        },
+        error: function (msg, cmd, param) {
+            if (typeof (eval(callback)) == "function") {
+                callback(false)
+            }
+        },
+        success: function (rsp, cmd, param) {
+            if (typeof (eval(callback)) == "function") {
+                callback(true);
+            }
+        }
+    });
+}
+
+
+/*
+ * 记录聊天对象
+ */
+var recordbelinked = function () {
+    //alert(callBackParameter.chatNick);
+    $.post(baseurl + "/access/recordbelinked.ashx",
+        {
+            'buyernick': callBackParameter.chatNick,
+            'chatnick': callBackParameter.nick
+        },
+    function (data, status) {
+    });
+}
+
+/*
+ * 唤出订单后台信息插件
+ */
+var callTradeBack = function (chatNick) {
+    QN.plugin.invoke({
+        category: 'jiaoyiguanli',
+        cmd: 'tradeList',
+        param: { buyerNick: chatNick },
+        error: function (msg, categroy, cmd, param) {
+            // 调用失败
+        },
+        success: function (rsp, categroy, cmd, param) {
+            // 回调结果
+        }
+    });
+}
+
+var atherwindow = function () {
+    QN.application.invoke({
+        cmd: 'browserUrl',
+        param: {
+            'url': "http://trade.taobao.com/trade/itemlist/list_sold_items.htm?spm=a220o.1000855.a2226mz.6.0Aso8J&t=20110530",
+            //buyerNick: "忘情天地"
+        },
+        error: function (msg, cmd, param) {
+            alert("调用失败");
+            // 调用失败
+        },
+        success: function (rsp, cmd, param) {
+
+            //alert(JSON.stringify(rsp));
+            // 回调结果
+        }
+    });
+}
+
+var gotobackstage = function () {
+    var nick = $("#buyernick").val();
+    QN.application.invoke({
+        cmd: 'browserUrl',
+        param: {
+            'url': "http://trade.taobao.com/trade/itemlist/list_sold_items.htm?user_type=1&event_submit_do_query=1&action=itemlist/query_action&_fmt.q._0.b=" + nick,
+        },
+        error: function (msg, cmd, param) {
+            alert("调用失败");
+        },
+        success: function (rsp, cmd, param) {
+
+        }
+    });
+}
+
+/*
+ * 任务
+ */
+var opentaskwindow = function () {
+    QN.application.invoke({
+        cmd: 'openAttachWindow',
+        param: {
+            event: "task",
+            width: 1024,
+            height: 550,
+            title: '任务信息',
+        },
+        error: function (msg, cmd, param) {
+            //alert("调用失败");
+            // 调用失败
+        },
+        success: function (rsp, cmd, param) {
+            //alert(rsp);
+            //alert(JSON.stringify(rsp));
+            // 回调结果
+        }
+    });
+
+    //var wwname = $("#nick").val();
+    //QN.application.invoke({
+    //    cmd: 'browserUrlEmbedded',
+    //    param: {
+    //        url: "http://119.145.129.194:8889/task.aspx?wwname=" + wwname,
+    //        width: 1024,
+    //        height: 550,
+    //        title: '创建任务',
+    //    },
+    //    error: function (msg, cmd, param) {
+    //        //alert("调用失败");
+    //        // 调用失败
+    //    },
+    //    success: function (rsp, cmd, param) {
+
+    //        //alert(JSON.stringify(rsp));
+    //        // 回调结果
+    //    }
+    //});
+}
+
+/*
+ * 创建任务
+ */
+var opencreatetaskwindow = function () {
+    var wwname = $("#nick").val();
+    QN.application.invoke({
+        cmd: 'browserUrlEmbedded',
+        param: {
+            //url: "http://119.145.129.194:8889/createtask.aspx?wwname=" + wwname + "&buyernick=" + buyernick,
+            url: baseurl + "/createtask.aspx?wwname=" + wwname + "&buyernick=" + buyernick,
+            width: 422,
+            height: 402,
+            title: '创建任务',
+        },
+        error: function (msg, cmd, param) {
+            //alert("调用失败");
+            // 调用失败
+        },
+        success: function (rsp, cmd, param) {
+
+            //alert(JSON.stringify(rsp));
+            // 回调结果
+        }
+    });
+}
+
+/*
+ * 任务提醒
+ */
+var openupdatetaskwindow = function () {
+    QN.application.invoke({
+        cmd: 'browserUrlEmbedded',
+        param: {
+            //url: "http://119.145.129.194:8889/tiptask.html?guid=" + guid,
+            url: baseurl + "/tiptask.html?guid=" + guid,
+            width: 300,
+            height: 300,
+            title: '任务提醒',
+        },
+        error: function (msg, cmd, param) {
+            alert("调用失败");
+            // 调用失败
+        },
+        success: function (rsp, cmd, param) {
+
+            //alert(JSON.stringify(rsp));
+            // 回调结果
+        }
+    });
+}
+
+var opendealtaskwindow = function (guid) {
+    QN.application.invoke({
+        cmd: 'browserUrlEmbedded',
+        param: {
+            //url: "http://119.145.129.194:8889/dealtask.html?guid=" + guid,
+            url: baseurl + "/dealtask.html?guid=" + guid,
+            width: 540,
+            height: 330,
+            title: '任务详情',
+        },
+        error: function (msg, cmd, param) {
+            //alert("调用失败");
+            // 调用失败
+        },
+        success: function (rsp, cmd, param) {
+
+            //alert(JSON.stringify(rsp));
+            // 回调结果
+        }
+    });
+}
+
+var openprocesstaskwindow = function (guid) {
+    var wwname = $("#wwname").val();
+    QN.application.invoke({
+        cmd: 'browserUrlEmbedded',
+        param: {
+            //url: "http://119.145.129.194:8889/processtask.html?guid=" + guid + "&wwname=" + wwname,
+            url: baseurl + "/processtask.html?guid=" + guid + "&wwname=" + wwname,
+            width: 420,
+            height: 470,
+            title: '任务处理',
+        },
+        error: function (msg, cmd, param) {
+            //alert("调用失败");
+            // 调用失败
+        },
+        success: function (rsp, cmd, param) {
+
+            //alert(JSON.stringify(rsp));
+            // 回调结果
+        }
+    });
+}
+
+
+/*
+ * 关闭
+ */
+var closewindow = function () {
+    QN.application.invoke({
+        cmd: 'closePlugin',
+        param: {
+        },
+        error: function (msg, cmd, param) {
+        },
+        success: function (rsp, cmd, param) {
+        }
+    });
+
+}
+
+var tpstatus = function (status) {
+    if (status === "WAIT_BUYER_PAY")
+        return '等待买家付款';
+    if (status === 'SELLER_CONSIGNED_PART')
+        return '卖家部分发货';
+    if (status === 'WAIT_SELLER_SEND_GOODS')
+        return '买家已付款';
+    if (status === 'WAIT_BUYER_CONFIRM_GOODS')
+        return '卖家已发货';
+    if (status === 'TRADE_BUYER_SIGNED')
+        return '买家已签收';
+    if (status === 'TRADE_FINISHED')
+        return '交易成功';
+    if (status === 'TRADE_CLOSED')
+        return '交易自动关闭';
+    if (status === 'TRADE_CLOSED_BY_TAOBAO')
+        return '主动交易关闭';
+}
+

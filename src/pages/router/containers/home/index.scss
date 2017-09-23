@@ -1,0 +1,24 @@
+
+.NoticeStyle{
+  margin:5px 0px;
+}
+.PlanPic{
+  height: 150px;
+}
+.next-slick-active.planBlock[tabindex='-1']:hover{
+  width:200px !important;
+}
+.next-slick-list{
+  height: 150px;
+}
+.next-select.multiple .next-select-inner{
+    width: 120px !important;
+    max-height: 48px;
+    height: auto;
+    overflow-y: auto;
+}
+.next-dialog-body {
+    font-size: 14px;
+    color: #666;
+    padding: 5px 20px;
+}
